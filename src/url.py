@@ -1,6 +1,7 @@
 """URL Parsing."""
 
 import socket
+import ssl
 
 
 class URL:
@@ -9,7 +10,13 @@ class URL:
     def __init__(self, url: str):
         """Initialise a URL by parsing the string into its components."""
         self.scheme, url = url.split("://", maxsplit=1)
-        assert self.scheme == "http"
+        assert self.scheme in ["http", "https"]
+
+        # Set port based on http vs https
+        if self.scheme == "http":
+            self.port = 80
+        elif self.scheme == "https":
+            self.port = 443
 
         if "/" not in url:
             self.host = url
@@ -31,11 +38,18 @@ class URL:
             type=socket.SOCK_STREAM,
             proto=socket.IPPROTO_TCP,
         )
-        host_connection_socket.connect((self.host, 80))
+        host_connection_socket.connect((self.host, self.port))
 
         # Create HTTP request
         request = f"GET {self.path} HTTP/1.0\nHost {self.host}\n\n"
         host_connection_socket.send(request.encode("utf8"))
+
+        # If our scheme is https, wrap the socket using SSL to allow for TLS encryption
+        if self.scheme == "https":
+            context = ssl.create_default_context()
+            host_connection_socket = context.wrap_socket(
+                host_connection_socket, server_hostname=self.host
+            )
 
         # Get response as a string
         # afaik makefile is just a helper which waits for all bits to arrive from the
