@@ -20,8 +20,14 @@ class URL:
 
         if "/" not in url:
             self.host = url
+            url = ""
         else:
             self.host, url = url.split("/", maxsplit=1)
+
+        # Parse port number from host to replace the default port number
+        if ":" in self.host:
+            self.host, self.port = self.host.split(":", maxsplit=1)
+            self.port = int(self.port)
 
         self.path = "/" + url
 
