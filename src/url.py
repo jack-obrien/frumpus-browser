@@ -46,16 +46,16 @@ class URL:
         )
         host_connection_socket.connect((self.host, self.port))
 
-        # Create HTTP request
-        request = f"GET {self.path} HTTP/1.0\nHost {self.host}\n\n"
-        host_connection_socket.send(request.encode("utf8"))
-
         # If our scheme is https, wrap the socket using SSL to allow for TLS encryption
         if self.scheme == "https":
             context = ssl.create_default_context()
             host_connection_socket = context.wrap_socket(
                 host_connection_socket, server_hostname=self.host
             )
+
+        # Create HTTP request
+        request = f"GET {self.path} HTTP/1.0\nHost {self.host}\n\n"
+        host_connection_socket.send(request.encode("utf8"))
 
         # Get response as a string
         # afaik makefile is just a helper which waits for all bits to arrive from the
