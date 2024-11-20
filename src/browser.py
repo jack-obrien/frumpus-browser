@@ -5,6 +5,7 @@ from url import URL
 
 WIDTH, HEIGHT = 800, 600
 HSTEP, VSTEP = 13, 18
+SCROLL_STEP = 100
 
 
 def lex(body: str) -> str:
@@ -48,7 +49,11 @@ class Browser:
         """Initialise the browser window."""
         self.window = tkinter.Tk()
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
+        self.scroll = 0  # Offset between page coords and screen coords.
         self.canvas.pack()
+
+        # Scrolling
+        self.window.bind("<Down>", self.scrolldown)
 
     def load(self, url: URL):
         """Make a http reqest and display the content."""
@@ -65,7 +70,19 @@ class Browser:
     def draw(self) -> None:
         """Render text character by character."""
         for x, y, c in self.display_list:
-            self.canvas.create_text(x, y, text=c)
+            if y > self.scroll + HEIGHT or y + VSTEP < self.scroll:
+                continue
+            self.canvas.create_text(x, y - self.scroll, text=c)
+
+    def scrolldown(self, e) -> None:
+        """Scroll the displayed text down.
+
+        The argument e is an igored tkinter event.
+        """
+        self.scroll += SCROLL_STEP
+        self.canvas.delete("all")
+        self.draw()
+
 
 if __name__ == "__main__":
     import sys
