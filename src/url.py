@@ -84,5 +84,4 @@ class URL:
         # Get the web content and close the socket
         content = response.read()
         host_connection_socket.close()
-        print(content)
         return content
