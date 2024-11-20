@@ -54,7 +54,7 @@ class URL:
             )
 
         # Create HTTP request
-        request = f"GET {self.path} HTTP/1.0\nHost {self.host}\n\n"
+        request = f"GET {self.path} HTTP/1.0\nHost: {self.host}\n\n"
         host_connection_socket.send(request.encode("utf8"))
 
         # Get response as a string
@@ -84,4 +84,5 @@ class URL:
         # Get the web content and close the socket
         content = response.read()
         host_connection_socket.close()
+        print(content)
         return content
