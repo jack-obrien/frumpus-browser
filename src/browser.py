@@ -1,6 +1,7 @@
 """GUI functionality for the browser."""
 
 import tkinter
+import tkinter.font
 from url import URL
 
 WIDTH, HEIGHT = 800, 600
@@ -28,16 +29,19 @@ def layout(text) -> list[tuple[int | str]]:
 
     Returns a list of (x, y, c) for each character in text.
     """
+    font = tkinter.font.Font()
+
     display_list = []
     cursor_x, cursor_y = HSTEP, VSTEP
-    for c in text:
-        cursor_x += HSTEP
+    for word in text.split():
+        w = font.measure(word)
         # Wrap if needed
-        if cursor_x >= WIDTH - HSTEP:
-            cursor_y += VSTEP
+        if cursor_x + w > WIDTH - HSTEP:
+            cursor_y += font.metrics("linespace") * 1.25
             cursor_x = HSTEP
 
-        display_list.append((cursor_x, cursor_y, c))
+        display_list.append((cursor_x, cursor_y, word))
+        cursor_x += w + font.measure(" ")
 
     return display_list
 
@@ -72,7 +76,7 @@ class Browser:
         for x, y, c in self.display_list:
             if y > self.scroll + HEIGHT or y + VSTEP < self.scroll:
                 continue
-            self.canvas.create_text(x, y - self.scroll, text=c)
+            self.canvas.create_text(x, y - self.scroll, text=c, anchor="nw")
 
     def scrolldown(self, e) -> None:
         """Scroll the displayed text down.
