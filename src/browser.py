@@ -9,39 +9,76 @@ HSTEP, VSTEP = 13, 18
 SCROLL_STEP = 100
 
 
-def lex(body: str) -> str:
-    """Given HTML content, return eveything that is not a tag."""
+class Text:
+    """Text from webpage."""
+
+    def __init__(self, text):
+        self.text = text
+
+
+class Tag:
+    """HTML tag."""
+
+    def __init__(self, tag):
+        self.tag = tag
+
+
+def lex(body: str) -> list[Tag | Text]:
+    """Parse HTML into tags and text."""
+    out = []
+    buffer = ""
     in_tag = False
-    output_text = ""
     for c in body:
         if c == "<":
             in_tag = True
+            if buffer:
+                out.append(Text(buffer))
+            buffer = ""
         elif c == ">":
             in_tag = False
-        elif not in_tag:
-            output_text += c
+            out.append(Tag(buffer))
+            buffer = ""
+        else:
+            buffer += c
+    if not in_tag and buffer:
+        out.append(Text(buffer))
+    return out
 
-    return output_text
 
-
-def layout(text) -> list[tuple[int | str]]:
+def layout(tokens: list[Tag | Text]) -> list[tuple[int | str]]:
     """Create a display list corresponding to text, in page coordinates.
 
     Returns a list of (x, y, c) for each character in text.
     """
     font = tkinter.font.Font()
+    weight = "normal"
+    style = "roman"
 
     display_list = []
     cursor_x, cursor_y = HSTEP, VSTEP
-    for word in text.split():
-        w = font.measure(word)
-        # Wrap if needed
-        if cursor_x + w > WIDTH - HSTEP:
-            cursor_y += font.metrics("linespace") * 1.25
-            cursor_x = HSTEP
+    for token in tokens:
+        if isinstance(token, Text):
+            for word in token.text.split():
+                # Update font based on html tag parsing variables
+                font = tkinter.font.Font(size=16, weight=weight, slant=style)
 
-        display_list.append((cursor_x, cursor_y, word))
-        cursor_x += w + font.measure(" ")
+                w = font.measure(word)
+                # Wrap if needed
+                if cursor_x + w > WIDTH - HSTEP:
+                    cursor_y += font.metrics("linespace") * 1.25
+                    cursor_x = HSTEP
+
+                display_list.append((cursor_x, cursor_y, word, font))
+                cursor_x += w + font.measure(" ")
+
+        elif token.tag == "i":
+            style = "italic"
+        elif token.tag == "/i":
+            style = "roman"
+        elif token.tag == "b":
+            weight = "bold"
+        elif token.tag == "/b":
+            weight = "normal"
 
     return display_list
 
@@ -73,10 +110,10 @@ class Browser:
 
     def draw(self) -> None:
         """Render text character by character."""
-        for x, y, c in self.display_list:
+        for x, y, c, font in self.display_list:
             if y > self.scroll + HEIGHT or y + VSTEP < self.scroll:
                 continue
-            self.canvas.create_text(x, y - self.scroll, text=c, anchor="nw")
+            self.canvas.create_text(x, y - self.scroll, text=c, anchor="nw", font=font)
 
     def scrolldown(self, e) -> None:
         """Scroll the displayed text down.
