@@ -55,6 +55,7 @@ class Layout:
         self.cursor_y = VSTEP
         self.weight = "normal"
         self.style = "roman"
+        self.size = 12
 
         for token in tokens:
             self.layout_token(token)
@@ -64,7 +65,7 @@ class Layout:
         if isinstance(token, Text):
             for word in token.text.split():
                 # Update font based on html tag parsing variables
-                font = tkinter.font.Font(size=16, weight=self.weight, slant=self.style)
+                font = tkinter.font.Font(size=self.size, weight=self.weight, slant=self.style)
 
                 w = font.measure(word)
                 # Wrap if needed
@@ -83,6 +84,14 @@ class Layout:
             self.weight = "bold"
         elif token.tag == "/b":
             self.weight = "normal"
+        elif token.tag == "small":
+            self.size -= 2
+        elif token.tag == "/small":
+            self.size += 2
+        elif token.tag == "big":
+            self.size += 4
+        elif token.tag == "/big":
+            self.size -= 4
 
 
 class Browser:
