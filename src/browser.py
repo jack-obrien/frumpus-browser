@@ -5,8 +5,8 @@ import tkinter.font
 from url import URL
 
 WIDTH, HEIGHT = 800, 600
-HSTEP, VSTEP = 13, 18
 SCROLL_STEP = 100
+HSTEP, VSTEP = 13, 18
 
 
 class Text:
@@ -45,42 +45,44 @@ def lex(body: str) -> list[Tag | Text]:
     return out
 
 
-def layout(tokens: list[Tag | Text]) -> list[tuple[int | str]]:
-    """Create a display list corresponding to text, in page coordinates.
+class Layout:
+    """Layout of a webpage."""
 
-    Returns a list of (x, y, c) for each character in text.
-    """
-    font = tkinter.font.Font()
-    weight = "normal"
-    style = "roman"
+    def __init__(self, tokens: list[Tag | Text]) -> None:
+        """Initialise a Layout."""
+        self.display_list = []
+        self.cursor_x = HSTEP
+        self.cursor_y = VSTEP
+        self.weight = "normal"
+        self.style = "roman"
 
-    display_list = []
-    cursor_x, cursor_y = HSTEP, VSTEP
-    for token in tokens:
+        for token in tokens:
+            self.layout_token(token)
+
+    def layout_token(self, token: Tag | Text) -> tuple[int | str | tkinter.font.Font]:
+        """Place token in correct place in the layout."""
         if isinstance(token, Text):
             for word in token.text.split():
                 # Update font based on html tag parsing variables
-                font = tkinter.font.Font(size=16, weight=weight, slant=style)
+                font = tkinter.font.Font(size=16, weight=self.weight, slant=self.style)
 
                 w = font.measure(word)
                 # Wrap if needed
-                if cursor_x + w > WIDTH - HSTEP:
-                    cursor_y += font.metrics("linespace") * 1.25
-                    cursor_x = HSTEP
+                if self.cursor_x + w > WIDTH - HSTEP:
+                    self.cursor_y += font.metrics("linespace") * 1.25
+                    self.cursor_x = HSTEP
 
-                display_list.append((cursor_x, cursor_y, word, font))
-                cursor_x += w + font.measure(" ")
+                self.display_list.append((self.cursor_x, self.cursor_y, word, font))
+                self.cursor_x += w + font.measure(" ")
 
         elif token.tag == "i":
-            style = "italic"
+            self.style = "italic"
         elif token.tag == "/i":
-            style = "roman"
+            self.style = "roman"
         elif token.tag == "b":
-            weight = "bold"
+            self.weight = "bold"
         elif token.tag == "/b":
-            weight = "normal"
-
-    return display_list
+            self.weight = "normal"
 
 
 class Browser:
@@ -102,10 +104,10 @@ class Browser:
         body = url.request()
 
         # Convert HTML into plain text
-        text = lex(body)
+        tokens = lex(body)
 
         # Create a display list of the text
-        self.display_list = layout(text)
+        self.display_list = Layout(tokens).display_list
         self.draw()
 
     def draw(self) -> None:
