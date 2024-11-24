@@ -57,23 +57,32 @@ class Layout:
         self.style = "roman"
         self.size = 12
 
+        # Store the current line in memory so we can adjust word heights in a second
+        # pass. This lets us adjust for different font sizes on the same line.
+        self.line = []
+
         for token in tokens:
             self.layout_token(token)
+
+        self.flush()
 
     def layout_token(self, token: Tag | Text) -> tuple[int | str | tkinter.font.Font]:
         """Place token in correct place in the layout."""
         if isinstance(token, Text):
             for word in token.text.split():
                 # Update font based on html tag parsing variables
-                font = tkinter.font.Font(size=self.size, weight=self.weight, slant=self.style)
+                font = tkinter.font.Font(
+                    size=self.size, weight=self.weight, slant=self.style
+                )
 
                 w = font.measure(word)
                 # Wrap if needed
                 if self.cursor_x + w > WIDTH - HSTEP:
-                    self.cursor_y += font.metrics("linespace") * 1.25
-                    self.cursor_x = HSTEP
+                    self.flush()
+                    # self.cursor_y += font.metrics("linespace") * 1.25
+                    # self.cursor_x = HSTEP
 
-                self.display_list.append((self.cursor_x, self.cursor_y, word, font))
+                self.line.append((self.cursor_x, word, font))
                 self.cursor_x += w + font.measure(" ")
 
         elif token.tag == "i":
@@ -92,6 +101,34 @@ class Layout:
             self.size += 4
         elif token.tag == "/big":
             self.size -= 4
+        elif token.tag == "br":  # HTML tag for line break
+            self.flush()
+        elif token.tag == "/p":  # HTML tag for end of paragraph
+            self.flush()
+            self.cursor_y += VSTEP  # Add spacing between paragraphs
+
+    def flush(self):
+        """Second pass of page layout after each line, to align baselines."""
+        if not self.line:
+            return
+
+        # Get the max font ascent on self.line
+        metrics = [font.metrics() for x, word, font in self.line]
+        max_ascent = max([metric["ascent"] for metric in metrics])
+
+        # Move the baseline to make room for the max ascent.
+        baseline = self.cursor_y + 1.25 * max_ascent
+
+        for x, word, font in self.line:
+            y = baseline - font.metrics("ascent")
+            self.display_list.append((x, y, word, font))
+
+        # Move self.cursor_y down to adjust for the deepest descent
+        max_descent = max([metric["descent"] for metric in metrics])
+        self.cursor_y = baseline + 1.25 * max_descent
+
+        self.cursor_y += HSTEP
+        self.line = []
 
 
 class Browser:
