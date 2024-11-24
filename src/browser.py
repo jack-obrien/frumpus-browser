@@ -127,7 +127,7 @@ class Layout:
         max_descent = max([metric["descent"] for metric in metrics])
         self.cursor_y = baseline + 1.25 * max_descent
 
-        self.cursor_y += HSTEP
+        self.cursor_x = HSTEP
         self.line = []
 
 
