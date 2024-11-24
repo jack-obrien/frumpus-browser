@@ -8,6 +8,25 @@ WIDTH, HEIGHT = 800, 600
 SCROLL_STEP = 100
 HSTEP, VSTEP = 13, 18
 
+# Store tkinter font objects in a dictionary. The font objects automatically cache
+# words to improve lookup speed, we just need to use the same font object each time
+# per font.
+# Keys: (size, weight, style) tuple
+# Values: (tkinter.fonts.Font, tkinter.Label) tuple. For some reason the font object
+#   needs to come with a tkinter label as well to improve performance?
+#   yeah, the authors of the browser book dont really know why this is either.
+FONT_CACHE = {}
+
+
+def get_font(size, weight, style):
+    """Lookup font in the global FONT_CACHE, adding it if it does not exist."""
+    key = (size, weight, style)
+    if key not in FONT_CACHE:
+        font = tkinter.font.Font(size=size, weight=weight, slant=style)
+        label = tkinter.Label(font=font)
+        FONT_CACHE[key] = (font, label)
+    return FONT_CACHE[key][0]
+
 
 class Text:
     """Text from webpage."""
@@ -71,9 +90,7 @@ class Layout:
         if isinstance(token, Text):
             for word in token.text.split():
                 # Update font based on html tag parsing variables
-                font = tkinter.font.Font(
-                    size=self.size, weight=self.weight, slant=self.style
-                )
+                font = get_font(self.size, self.weight, self.style)
 
                 w = font.measure(word)
                 # Wrap if needed
