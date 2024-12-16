@@ -29,45 +29,92 @@ def get_font(size, weight, style):
 
 
 class Text:
-    """Text from webpage."""
+    """Text from a leaf of the DOM tree."""
 
-    def __init__(self, text):
+    def __init__(self, text: str, parent):
         self.text = text
+        self.children = []  # Text nodes are leaves so never have children, but this
+        # field is here for consistency
+        self.parent = parent
 
 
-class Tag:
-    """HTML tag."""
+class Element:
+    """HTML node from the DOM with an opening and closing tag."""
 
-    def __init__(self, tag):
+    def __init__(self, tag, parent):
         self.tag = tag
+        self.children = []
+        self.parent = parent
 
 
-def lex(body: str) -> list[Tag | Text]:
-    """Parse HTML into tags and text."""
-    out = []
-    buffer = ""
-    in_tag = False
-    for c in body:
-        if c == "<":
-            in_tag = True
-            if buffer:
-                out.append(Text(buffer))
-            buffer = ""
-        elif c == ">":
-            in_tag = False
-            out.append(Tag(buffer))
-            buffer = ""
+class HTMLParser:
+    """Parser for web HTML text which builds a tree of nodes."""
+
+    def __init__(self, body: str):
+        self.body = body
+        self.unfinished_tags = []
+
+    def parse(self):
+        """Parse HTML into tags and text."""
+        text = ""
+        in_tag = False
+        for c in self.body:
+            if c == "<":
+                in_tag = True
+                if text:
+                    self.add_text(text)
+                text = ""
+            elif c == ">":
+                in_tag = False
+                self.add_tag(text)
+                text = ""
+            else:
+                text += c
+        if not in_tag and text:
+            self.add_text(text)
+
+        # Here we are done with parsing the text
+        return self.finish()
+
+    def add_text(self, text):
+        """Add the given text to the DOM tree as a text node."""
+        parent = self.unfinished_tags[-1]
+        node = Text(text, parent)
+        parent.children.append(node)
+
+    def add_tag(self, tag):
+        """Add the given tag to the DOM tree as an element."""
+        if tag.startswith("/") and len(self.unfinished_tags == 1):
+            # NOTE: Handle edge case where we are last closing tag with no
+            # unfinished parent.
+            return
+        elif tag.startswith("/"):
+            # This is a closing tag. Finish the last unfinished node in the tree.
+            # NOTE: This assumes no unfinished nodes within the element.
+            node = self.unfinished_tags.pop()
+            parent = self.unfinished_tags[-1]
+            parent.children.append(node)
         else:
-            buffer += c
-    if not in_tag and buffer:
-        out.append(Text(buffer))
-    return out
+            # This is an opening tag - add an unfinished node to the tree.
+            # NOTE: Handle edge case if the node is the first it has no parent.
+            parent = self.unfinished_tags[-1] if self.unfinished_tags else None
+            node = Element(tag, parent)
+            self.unfinished_tags.append(node)
+
+    def finish(self):
+        """Complete the tree by finishing any unfinished nodes."""
+        while len(self.unfinished_tags) > 1:
+            node = self.unfinished_tags.pop()
+            parent = self.unfinished_tags[-1]
+            parent.children.append(node)
+
+        return self.unfinished_tags.pop()
 
 
 class Layout:
     """Layout of a webpage."""
 
-    def __init__(self, tokens: list[Tag | Text]) -> None:
+    def __init__(self, tokens: list[Element | Text]) -> None:
         """Initialise a Layout."""
         self.display_list = []
         self.cursor_x = HSTEP
@@ -85,7 +132,9 @@ class Layout:
 
         self.flush()
 
-    def layout_token(self, token: Tag | Text) -> tuple[int | str | tkinter.font.Font]:
+    def layout_token(
+        self, token: Element | Text
+    ) -> tuple[int | str | tkinter.font.Font]:
         """Place token in correct place in the layout."""
         if isinstance(token, Text):
             for word in token.text.split():
