@@ -37,6 +37,9 @@ class Text:
         # field is here for consistency
         self.parent = parent
 
+    def __repr__(self):
+        return repr(self.text)
+
 
 class Element:
     """HTML node from the DOM with an opening and closing tag."""
@@ -45,6 +48,16 @@ class Element:
         self.tag = tag
         self.children = []
         self.parent = parent
+
+    def __repr__(self):
+        return "<" + self.tag + ">"
+
+
+def print_tree(node: Text | Element, indent=0):
+    """Pretty print the HTML tree, given the root node."""
+    print(" " * indent, node)
+    for child in node.children:
+        print_tree(child, indent + 2)
 
 
 class HTMLParser:
@@ -84,7 +97,7 @@ class HTMLParser:
 
     def add_tag(self, tag):
         """Add the given tag to the DOM tree as an element."""
-        if tag.startswith("/") and len(self.unfinished_tags == 1):
+        if tag.startswith("/") and len(self.unfinished_tags) == 1:
             # NOTE: Handle edge case where we are last closing tag with no
             # unfinished parent.
             return
@@ -244,5 +257,9 @@ if __name__ == "__main__":
 
     browser = Browser()
     url = URL(sys.argv[1])
-    browser.load(url)
-    browser.window.mainloop()
+    body = url.request()
+    root_node = HTMLParser(body).parse()
+    print_tree(root_node)
+
+    # browser.load(url)
+    # browser.window.mainloop()
