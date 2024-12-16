@@ -44,10 +44,11 @@ class Text:
 class Element:
     """HTML node from the DOM with an opening and closing tag."""
 
-    def __init__(self, tag, parent):
+    def __init__(self, tag, attributes, parent):
         self.tag = tag
         self.children = []
         self.parent = parent
+        self.attributes = attributes
 
     def __repr__(self):
         return "<" + self.tag + ">"
@@ -62,6 +63,23 @@ def print_tree(node: Text | Element, indent=0):
 
 class HTMLParser:
     """Parser for web HTML text which builds a tree of nodes."""
+
+    SELF_CLOSING_TAGS = [
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    ]
 
     def __init__(self, body: str):
         self.body = body
@@ -91,12 +109,42 @@ class HTMLParser:
 
     def add_text(self, text):
         """Add the given text to the DOM tree as a text node."""
+        if text.isspace():
+            # NOTE: Handle edge case where we get /n before opening any tags.
+            return
+
         parent = self.unfinished_tags[-1]
         node = Text(text, parent)
         parent.children.append(node)
 
+    def get_attributes(self, text):
+        """Get the attributes of a HTML tag.
+
+        Assumes the ttributes contain no whitespace.
+        """
+        parts = text.split()
+        tag = parts[0].casefold()  # Safer way to handle case insensitive stuff.
+        attributes = {}
+        for attrpair in parts[1:]:
+            if "=" in attrpair:
+                key, value = attrpair.split("=", 1)
+                # The value might be quoted so we need to remove quotes.
+                if len(value) > 2 and value[0] in ["'", '"']:
+                    value = value[1:-1]
+                attributes[key.casefold()] = value
+            else:
+                attributes[attrpair.casefold()] = ""
+
+        return tag, attributes
+
     def add_tag(self, tag):
         """Add the given tag to the DOM tree as an element."""
+        # Separate into tag and attributes
+        tag, attributes = self.get_attributes(tag)
+
+        if tag.startswith("!"):
+            # Ignore !doctype tag
+            return
         if tag.startswith("/") and len(self.unfinished_tags) == 1:
             # NOTE: Handle edge case where we are last closing tag with no
             # unfinished parent.
@@ -107,11 +155,16 @@ class HTMLParser:
             node = self.unfinished_tags.pop()
             parent = self.unfinished_tags[-1]
             parent.children.append(node)
+        elif tag in self.SELF_CLOSING_TAGS:
+            # Add these tags to the tree without a closing tag.
+            parent = self.unfinished_tags[-1]
+            node = Element(tag, attributes, parent)
+            parent.children.append(node)
         else:
             # This is an opening tag - add an unfinished node to the tree.
             # NOTE: Handle edge case if the node is the first it has no parent.
             parent = self.unfinished_tags[-1] if self.unfinished_tags else None
-            node = Element(tag, parent)
+            node = Element(tag, attributes, parent)
             self.unfinished_tags.append(node)
 
     def finish(self):
