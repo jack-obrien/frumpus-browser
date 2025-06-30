@@ -120,7 +120,7 @@ class HTMLParser:
     def get_attributes(self, text):
         """Get the attributes of a HTML tag.
 
-        Assumes the ttributes contain no whitespace.
+        Assumes the attributes contain no whitespace.
         """
         parts = text.split()
         tag = parts[0].casefold()  # Safer way to handle case insensitive stuff.
@@ -143,7 +143,7 @@ class HTMLParser:
         tag, attributes = self.get_attributes(tag)
 
         if tag.startswith("!"):
-            # Ignore !doctype tag
+            # Ignore !doctype tag and comment
             return
         if tag.startswith("/") and len(self.unfinished_tags) == 1:
             # NOTE: Handle edge case where we are last closing tag with no
@@ -167,7 +167,7 @@ class HTMLParser:
             node = Element(tag, attributes, parent)
             self.unfinished_tags.append(node)
 
-    def finish(self):
+    def finish(self) -> Text | Element:
         """Complete the tree by finishing any unfinished nodes."""
         while len(self.unfinished_tags) > 1:
             node = self.unfinished_tags.pop()
@@ -180,7 +180,7 @@ class HTMLParser:
 class Layout:
     """Layout of a webpage."""
 
-    def __init__(self, tokens: list[Element | Text]) -> None:
+    def __init__(self, root_node: Element | Text) -> None:
         """Initialise a Layout."""
         self.display_list = []
         self.cursor_x = HSTEP
@@ -193,51 +193,62 @@ class Layout:
         # pass. This lets us adjust for different font sizes on the same line.
         self.line = []
 
-        for token in tokens:
-            self.layout_token(token)
+        self.recurse_layout(root_node)
 
         self.flush()
 
-    def layout_token(
-        self, token: Element | Text
-    ) -> tuple[int | str | tkinter.font.Font]:
-        """Place token in correct place in the layout."""
-        if isinstance(token, Text):
-            for word in token.text.split():
-                # Update font based on html tag parsing variables
-                font = get_font(self.size, self.weight, self.style)
+    def recurse_layout(self, node: Text | Element):
+        """Layout an entire page, already parsed."""
+        if isinstance(node, Text):
+            for word in node.text.split():
+                self.layout_word(word)
+        elif isinstance(node, Element):
+            self.open_tag(node)
+            for child in node.children:
+                self.recurse_layout(child)
+            self.close_tag(node)
 
-                w = font.measure(word)
-                # Wrap if needed
-                if self.cursor_x + w > WIDTH - HSTEP:
-                    self.flush()
-                    # self.cursor_y += font.metrics("linespace") * 1.25
-                    # self.cursor_x = HSTEP
-
-                self.line.append((self.cursor_x, word, font))
-                self.cursor_x += w + font.measure(" ")
-
-        elif token.tag == "i":
+    def open_tag(self, tag: Element):
+        """Apply the tag to self."""
+        if tag.tag == "i":
             self.style = "italic"
-        elif token.tag == "/i":
-            self.style = "roman"
-        elif token.tag == "b":
+        elif tag.tag == "b":
             self.weight = "bold"
-        elif token.tag == "/b":
-            self.weight = "normal"
-        elif token.tag == "small":
+        elif tag.tag == "small":
             self.size -= 2
-        elif token.tag == "/small":
-            self.size += 2
-        elif token.tag == "big":
+        elif tag.tag == "big":
             self.size += 4
-        elif token.tag == "/big":
-            self.size -= 4
-        elif token.tag == "br":  # HTML tag for line break
-            self.flush()
-        elif token.tag == "/p":  # HTML tag for end of paragraph
+        elif tag.tag == "br":  # HTML tag for line break
             self.flush()
             self.cursor_y += VSTEP  # Add spacing between paragraphs
+
+    def close_tag(self, tag: Element):
+        """Stop applying the tag to self."""
+        if tag.tag == "i":
+            self.style = "roman"
+        elif tag.tag == "b":
+            self.weight = "normal"
+        elif tag.tag == "small":
+            self.size += 2
+        elif tag.tag == "big":
+            self.size -= 4
+        elif tag.tag == "p":  # HTML tag for end of paragraph
+            self.flush()
+
+    def layout_word(self, word: Text):
+        """Place token in correct place in the layout."""
+        # Update font based on html tag parsing variables
+        font = get_font(self.size, self.weight, self.style)
+
+        w = font.measure(word)
+        # Wrap if needed
+        if self.cursor_x + w > WIDTH - HSTEP:
+            self.flush()
+            # self.cursor_y += font.metrics("linespace") * 1.25
+            # self.cursor_x = HSTEP
+
+        self.line.append((self.cursor_x, word, font))
+        self.cursor_x += w + font.measure(" ")
 
     def flush(self):
         """Second pass of page layout after each line, to align baselines."""
@@ -282,10 +293,10 @@ class Browser:
         body = url.request()
 
         # Convert HTML into plain text
-        tokens = lex(body)
+        self.root_node = HTMLParser(body).parse()
 
         # Create a display list of the text
-        self.display_list = Layout(tokens).display_list
+        self.display_list = Layout(self.root_node).display_list
         self.draw()
 
     def draw(self) -> None:
@@ -310,9 +321,5 @@ if __name__ == "__main__":
 
     browser = Browser()
     url = URL(sys.argv[1])
-    body = url.request()
-    root_node = HTMLParser(body).parse()
-    print_tree(root_node)
-
-    # browser.load(url)
-    # browser.window.mainloop()
+    browser.load(url)
+    browser.window.mainloop()
