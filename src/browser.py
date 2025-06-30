@@ -220,7 +220,6 @@ class Layout:
             self.size += 4
         elif tag.tag == "br":  # HTML tag for line break
             self.flush()
-            self.cursor_y += VSTEP  # Add spacing between paragraphs
 
     def close_tag(self, tag: Element):
         """Stop applying the tag to self."""
@@ -234,6 +233,7 @@ class Layout:
             self.size -= 4
         elif tag.tag == "p":  # HTML tag for end of paragraph
             self.flush()
+            self.cursor_y += VSTEP  # Add spacing between paragraphs
 
     def layout_word(self, word: Text):
         """Place token in correct place in the layout."""
@@ -244,8 +244,6 @@ class Layout:
         # Wrap if needed
         if self.cursor_x + w > WIDTH - HSTEP:
             self.flush()
-            # self.cursor_y += font.metrics("linespace") * 1.25
-            # self.cursor_x = HSTEP
 
         self.line.append((self.cursor_x, word, font))
         self.cursor_x += w + font.measure(" ")
@@ -280,6 +278,7 @@ class Browser:
     def __init__(self):
         """Initialise the browser window."""
         self.window = tkinter.Tk()
+        self.window.title("frumpus")
         self.canvas = tkinter.Canvas(self.window, width=WIDTH, height=HEIGHT)
         self.scroll = 0  # Offset between page coords and screen coords.
         self.canvas.pack()
