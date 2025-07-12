@@ -177,11 +177,33 @@ class HTMLParser:
         return self.unfinished_tags.pop()
 
 
-class Layout:
-    """Layout of a webpage."""
+class DocumentLayout:
+    """Root layout of the document."""
 
-    def __init__(self, root_node: Element | Text) -> None:
-        """Initialise a Layout."""
+    def __init__(self, node):
+        """Initialise the document layout."""
+        self.node = node
+        self.parent = None
+        self.children = []
+
+    def layout(self):
+        """Recursively layout all children."""
+        child = BlockLayout(self.node, self, None)
+        self.children.append(child)
+        child.layout()
+        self.display_list = child.display_list
+
+
+class BlockLayout:
+    """Layout of a block of text."""
+
+    def __init__(self, node: Element | Text, parent, previous) -> None:
+        """Initialise the layout of a block of text."""
+        self.node = node
+        self.parent = parent
+        self.previous = previous
+        self.children = []
+
         self.display_list = []
         self.cursor_x = HSTEP
         self.cursor_y = VSTEP
@@ -193,11 +215,14 @@ class Layout:
         # pass. This lets us adjust for different font sizes on the same line.
         self.line = []
 
-        self.recurse_layout(root_node)
+    def layout(self):
+        """Layout the block of text.
 
-        self.flush()
+        Externally used function.
+        """
+        self.recurse_layout(self.node)
 
-    def recurse_layout(self, node: Text | Element):
+    def recurse_layout(self, node):
         """Layout an entire page, already parsed."""
         if isinstance(node, Text):
             for word in node.text.split():
@@ -295,7 +320,9 @@ class Browser:
         self.root_node = HTMLParser(body).parse()
 
         # Create a display list of the text
-        self.display_list = Layout(self.root_node).display_list
+        self.document = DocumentLayout(self.root_node)
+        self.document.layout()
+        self.display_list = self.document.display_list
         self.draw()
 
     def draw(self) -> None:
