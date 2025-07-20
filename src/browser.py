@@ -101,6 +101,17 @@ def print_tree(node: Text | Element, indent=0):
         print_tree(child, indent + 2)
 
 
+def paint_tree(layout_object, display_list):
+    """Get all displayed things from a layout object recursively.
+
+    Modifies the input display_list.
+    """
+    display_list.extend(layout_object.paint())
+
+    for child in layout_object.children:
+        paint_tree(child, display_list)
+
+
 class HTMLParser:
     """Parser for web HTML text which builds a tree of nodes."""
 
@@ -233,7 +244,7 @@ class DocumentLayout:
 
     def layout(self):
         """Recursively layout all children."""
-        self.width = WIDTH - 2*HSTEP
+        self.width = WIDTH - 2 * HSTEP
         self.x = HSTEP
         self.y = VSTEP
 
@@ -243,6 +254,10 @@ class DocumentLayout:
         self.display_list = child.display_list
 
         self.height = child.height
+
+    def paint(self) -> list:
+        """Return displayable stuff from self."""
+        return []
 
 
 class BlockLayout:
@@ -403,6 +418,10 @@ class BlockLayout:
         self.cursor_x = 0
         self.line = []
 
+    def paint(self) -> list:
+        """Return all the displayable stuff in a BlockLayout."""
+        return self.display_list
+
 
 class Browser:
     """Browser GUI."""
@@ -426,10 +445,14 @@ class Browser:
         # Convert HTML into plain text
         self.root_node = HTMLParser(body).parse()
 
-        # Create a display list of the text
+        # Create a document layout tree
         self.document = DocumentLayout(self.root_node)
         self.document.layout()
-        self.display_list = self.document.display_list
+
+        # Get all the paintable stuff from the document layout.
+        self.display_list = []
+        paint_tree(self.document, self.display_list)
+
         self.draw()
 
     def draw(self) -> None:
