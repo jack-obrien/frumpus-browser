@@ -251,7 +251,6 @@ class DocumentLayout:
         child = BlockLayout(self.node, self, None)
         self.children.append(child)
         child.layout()
-        self.display_list = child.display_list
 
         self.height = child.height
 
@@ -309,7 +308,6 @@ class BlockLayout:
 
         for child in self.children:
             child.layout()
-            self.display_list.extend(child.display_list)
 
         if mode == "block":
             self.height = sum([child.height for child in self.children])
