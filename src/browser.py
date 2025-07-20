@@ -17,6 +17,46 @@ HSTEP, VSTEP = 13, 18
 #   yeah, the authors of the browser book dont really know why this is either.
 FONT_CACHE = {}
 
+BLOCK_ELEMENTS = [
+    "html",
+    "body",
+    "article",
+    "section",
+    "nav",
+    "aside",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hgroup",
+    "header",
+    "footer",
+    "address",
+    "p",
+    "hr",
+    "pre",
+    "blockquote",
+    "ol",
+    "ul",
+    "menu",
+    "li",
+    "dl",
+    "dt",
+    "dd",
+    "figure",
+    "figcaption",
+    "main",
+    "div",
+    "table",
+    "form",
+    "fieldset",
+    "legend",
+    "details",
+    "summary",
+]
+
 
 def get_font(size, weight, style):
     """Lookup font in the global FONT_CACHE, adding it if it does not exist."""
@@ -186,12 +226,23 @@ class DocumentLayout:
         self.parent = None
         self.children = []
 
+        self.x = None
+        self.y = None
+        self.width = None
+        self.height = None
+
     def layout(self):
         """Recursively layout all children."""
+        self.width = WIDTH - 2*HSTEP
+        self.x = HSTEP
+        self.y = VSTEP
+
         child = BlockLayout(self.node, self, None)
         self.children.append(child)
         child.layout()
         self.display_list = child.display_list
+
+        self.height = child.height
 
 
 class BlockLayout:
@@ -203,6 +254,11 @@ class BlockLayout:
         self.parent = parent
         self.previous = previous
         self.children = []
+
+        self.x = None
+        self.y = None
+        self.width = None
+        self.height = None
 
         self.display_list = []
         self.cursor_x = HSTEP
@@ -220,7 +276,57 @@ class BlockLayout:
 
         Externally used function.
         """
-        self.recurse_layout(self.node)
+        self.x = self.parent.x
+        self.width = self.parent.width
+        if self.previous:
+            self.y = self.previous.y + self.previous.height
+        else:
+            self.y = self.parent.y
+
+        mode = self.get_layout_mode()
+
+        if mode == "block":
+            previous = None
+            for child in self.node.children:
+                next = BlockLayout(child, self, previous)
+                self.children.append(next)
+                previous = next
+
+        for child in self.children:
+            child.layout()
+            self.display_list.extend(child.display_list)
+
+        if mode == "block":
+            self.height = sum([child.height for child in self.children])
+
+        if mode == "inline":
+            self.cursor_x = 0
+            self.cursor_y = 0
+            self.weight = "normal"
+            self.style = "roman"
+            self.size = 12
+
+            self.line = []
+            self.recurse_layout(self.node)
+            self.flush()
+
+            self.height = self.cursor_y
+
+    def get_layout_mode(self) -> str:
+        """Determine what layout logic a node will need."""
+        if isinstance(self.node, Text):
+            return "inline"
+        elif any(
+            [  # Check if any child is a block element
+                isinstance(child, Element) and child.tag in BLOCK_ELEMENTS
+                for child in self.node.children
+            ]
+        ):
+            return "block"
+        elif self.node.children:
+            return "inline"
+        else:
+            return "block"
 
     def recurse_layout(self, node):
         """Layout an entire page, already parsed."""
@@ -267,7 +373,7 @@ class BlockLayout:
 
         w = font.measure(word)
         # Wrap if needed
-        if self.cursor_x + w > WIDTH - HSTEP:
+        if self.cursor_x + w > self.width:
             self.flush()
 
         self.line.append((self.cursor_x, word, font))
@@ -286,14 +392,15 @@ class BlockLayout:
         baseline = self.cursor_y + 1.25 * max_ascent
 
         for x, word, font in self.line:
-            y = baseline - font.metrics("ascent")
-            self.display_list.append((x, y, word, font))
+            abs_x = self.x + x
+            abs_y = self.y + baseline - font.metrics("ascent")
+            self.display_list.append((abs_x, abs_y, word, font))
 
         # Move self.cursor_y down to adjust for the deepest descent
         max_descent = max([metric["descent"] for metric in metrics])
         self.cursor_y = baseline + 1.25 * max_descent
 
-        self.cursor_x = HSTEP
+        self.cursor_x = 0
         self.line = []
 
 
